@@ -1,7 +1,8 @@
 library('rstan')
 
-nChain<-1
+nChain<-50
 nIter<-1000
+thin<-10
 if(parallel::detectCores()>10){
   rstan_options(auto_write = TRUE)
   options(mc.cores = parallel::detectCores())
@@ -98,6 +99,7 @@ info$SampleID<-as.character(info$SampleID)
 info$DerivingSampleID<-as.character(info$DerivingSampleID)
 info$StudyGroup<-as.character(info$StudyGroup)
 counts<-counts[,info$SampleID]
+counts<-counts[apply(counts,1,sum)>10,]
 
 
 assignGroups<-function(x,selector=rep(TRUE,length(x)),outId=99999){
@@ -132,5 +134,5 @@ dat<-list(
 )
 # ,control=list(adapt_delta=.99,stepsize=.01)
 # cacheOperation('work/stanFit.Rdat',
-fit <- stan(model_code = stanCode, data = dat, iter=nIter, chains=nChain,thin=25)
+fit <- stan(model_code = stanCode, data = dat, iter=nIter, chains=nChain,thin=thin)
 
