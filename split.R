@@ -1,7 +1,7 @@
 library('rstan')
 
-nChain<-10
-nIter<-10
+nChain<-1
+nIter<-1000
 if(parallel::detectCores()>10){
   rstan_options(auto_write = TRUE)
   options(mc.cores = parallel::detectCores())
@@ -22,65 +22,67 @@ stanCode<-"
     int<lower=0> nTissueSample;
     int<lower=0> nDiseaseSample;
     //could combine these three into one vector
-    int<lower=1> negativeID[nSample];
-    int<lower=1> healthyID[nSample];
-    int<lower=1> sickID[nSample];
+    int<lower=1> negativeID[nSamples];
+    int<lower=1> healthyID[nSamples];
+    int<lower=1> sickID[nSamples];
     int<lower=1,upper=3> sampleType[nSamples];
     int<lower=1,upper=3> samplePairType[nSamples];
     int<lower=0> counts[nSamples,nSpecies];
+    vector[2] tissuePrior;
+    vector[3] diseasePrior;
   }
   parameters {
-    real metaOtuMu[3,nSpecies-1]; //last one fixed at 0 for identifiability
+    matrix[3,nSpecies-1] metaOtuMu; //last one fixed at 0 for identifiability
     real<lower=0> metaOtuSigma[3,nSpecies];
-    real<lower=0,upper=1> otuSigmasNegative[nNegativePair,nSpecies,1];
-    real<lower=0,upper=1> otuSigmasHealthy[nHealthyPair,nSpecies,2];
-    real<lower=0,upper=1> otuSigmasSick[nSickPair,nSpecies,3];
-    real<lower=0,upper=1> samplePropsTissue[nTissueSample,2];
-    real<lower=0,upper=1> samplePropsDisease[nDiseaseSample,3];
+    matrix<lower=0,upper=1>[nSpecies,1] otuSigmasNegative[nNegativePair];
+    matrix<lower=0,upper=1>[nSpecies,2] otuSigmasHealthy[nHealthyPair];
+    matrix<lower=0,upper=1>[nSpecies,3] otuSigmasSick[nSickPair];
+    simplex[2] samplePropsTissue[nTissueSample];
+    simplex[3] samplePropsDisease[nDiseaseSample];
   }
   transformed parameters{
-    real<lower=0,upper=1> otuPropNegative[nNegativePair,nOtu,1];
-    real<lower=0,upper=1> otuPropHealthy[nHealthyPair,nOtu,2];
-    real<lower=0,upper=1> otuPropSick[nSickPair,nOtu,3];
+    simplex[nSpecies] otuPropNegative[nNegativePair];
+    simplex[nSpecies] otuPropHealthy[nHealthyPair,2];
+    simplex[nSpecies] otuPropSick[nSickPair,3];
 
     //convert raw proportion values to proportions
-    for(ii in 1:nNegativePair) otuPropControl[ii,,1] <- exp(otuSigmasNegative[ii,,1])/sum(exp(otuSigmasNegative[ii,,1]))
+    for(ii in 1:nNegativePair) otuPropNegative[ii,] = exp(otuSigmasNegative[ii][,1]) / sum(exp(otuSigmasNegative[ii][,1]));
     for(ii in 1:nHealthyPair){
-      for(jj in 1:2) otuPropHealthy[ii,,jj] <- exp(otuSigmasHealthy[ii,,jj])/sum(exp(otuSigmasHealthy[ii,,jj]))
+      for(jj in 1:2) otuPropHealthy[ii,jj] = exp(otuSigmasHealthy[ii][,jj]) / sum(exp(otuSigmasHealthy[ii][,jj]));
     }
     for(ii in 1:nSickPair){
-      for(jj in 1:3) otuPropSick[ii,,jj] <- exp(otuSigmasSick[ii,,jj])/sum(exp(otuSigmasSick[ii,,jj]))
+      for(jj in 1:3) otuPropSick[ii,jj] = exp(otuSigmasSick[ii][,jj]) / sum(exp(otuSigmasSick[ii][,jj]));
     }
   }
   model {
     #get the raw OTU proportion values for each pair
-    for(ii in 1:nNegativePair) otuSigmasNegative[ii,,1] ~ normal(c(metaOtuMu[1,],0),metaOtuSigma[1,]);
+    for(ii in 1:nNegativePair) otuSigmasNegative[ii][,1] ~ normal(append_col(metaOtuMu[1,],0.0),metaOtuSigma[1,]);
     for(ii in 1:nHealthyPair){
-      for(jj in 1:2) otuSigmasHealthy[ii,,jj] ~ normal(c(metaOtuMu[jj,],0),metaOtuSigma[jj,]);
+      for(jj in 1:2) otuSigmasHealthy[ii][,jj] ~ normal(append_col(metaOtuMu[jj,],0.0),metaOtuSigma[jj,]);
     }
     for(ii in 1:nSickPair){
-      for(jj in 1:3) otuSigmasSick[ii,,jj] ~ normal(c(metaOtuMu[jj,],0),metaOtuSigma[jj,]);
+      for(jj in 1:3) otuSigmasSick[jj][,ii] ~ normal(append_col(metaOtuMu[jj,],0.0),metaOtuSigma[jj,]);
     }
 
     //set up mixing proportions
-    for(ii in 1:nTissueSample)samplePropsTissue[ii,]~dirichlet(c(1,1))
-    for(ii in 1:nDiseaseSample)samplePropsDisease[ii,]~dirichlet(c(1,1,1))
+    for(ii in 1:nTissueSample)samplePropsTissue[ii]~dirichlet(tissuePrior);
+    for(ii in 1:nDiseaseSample)samplePropsDisease[ii]~dirichlet(diseasePrior);
 
     for(ii in 1:nSamples){
       if(sampleType[ii]==1){
-        if(samplePairType[ii]==1)counts[ii,] ~ multinomial(otuPropControl[negativeID[ii],,1]);
-        if(samplePairType[ii]==2)counts[ii,] ~ multinomial(otuPropHealthy[healthyID[ii],,1]);
-        if(samplePairType[ii]==3)counts[ii,] ~ multinomial(otuPropDisease[sickID[ii],,1]);
+        if(samplePairType[ii]==1)counts[ii,] ~ multinomial(otuPropNegative[negativeID[ii]]);
+        if(samplePairType[ii]==2)counts[ii,] ~ multinomial(otuPropHealthy[healthyID[ii],1]);
+        if(samplePairType[ii]==3)counts[ii,] ~ multinomial(otuPropSick[sickID[ii],1]);
       }
       if(sampleType[ii]==2){
         //samplePairType 1 would be an error tissue sample from negative control
-        if(samplePairType[ii]==2)counts[ii,] ~ multinomial(samplePropsTissue[ii,] %*% otuPropHealthy[healthyID[ii],,])
+        if(samplePairType[ii]==2)counts[ii,] ~ multinomial(samplePropsTissue[ii,1] * otuPropHealthy[healthyID[ii],1] + samplePropsTissue[ii,2] * otuPropHealthy[healthyID[ii],2]);
         //doesn't occur currently
-        if(samplePairType[ii]==3)counts[ii,] ~ multinomial(samplePropsDisease[ii,1:2] %*% otuPropDisease[sickID[ii],,1:2]);
+        if(samplePairType[ii]==3)counts[ii,] ~ multinomial(samplePropsDisease[ii,1] * otuPropSick[sickID[ii],1] + samplePropsDisease[ii,2] * otuPropSick[sickID[ii],2]);
       }
       if(sampleType[ii]==3){
         //samplePairType 1 or 2 would be an error disease sample from negative control or healthy control
-        if(samplePairType[ii]==3)counts[ii,] ~ multinomial(samplePropsDisease[ii,1:3] %*% otuPropDisease[sickID[ii],,1:3]);
+        if(samplePairType[ii]==3)counts[ii,] ~ multinomial(samplePropsDisease[ii,1] * otuPropSick[sickID[ii],1] + samplePropsDisease[ii,2] * otuPropSick[sickID[ii],2] + samplePropsDisease[ii,3] * otuPropSick[sickID[ii],3]);
       }
     }
   }
@@ -111,8 +113,8 @@ samplePairType<-ifelse(info$StudyGroup=='ext_ctrl',1,ifelse(info$StudyGroup=='he
 sampleType<-ifelse(info$SampleType!='BAL',1,ifelse(info$StudyGroup=='healthy',2,3))
 
 dat<-list(
-  nSamples=nrow(counts),  
-  nSpecies=ncol(counts),
+  nSamples=ncol(counts),  
+  nSpecies=nrow(counts),
   nNegativePair=max(negativeID[negativeID<99999]),
   nHealthyPair=max(healthyID[healthyID<99999]),
   nSickPair=max(sickID[sickID<99999]),
@@ -124,7 +126,9 @@ dat<-list(
   sickID=sickID[info$DerivingSampleID],
   sampleType=sampleType,
   samplePairType=samplePairType,
-  counts=counts
+  counts=t(counts),
+  tissuePrior=c(1,1),
+  diseasePrior=c(1,1,1)
 )
 # ,control=list(adapt_delta=.99,stepsize=.01)
 # cacheOperation('work/stanFit.Rdat',
