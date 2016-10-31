@@ -61,7 +61,7 @@ stanCode<-"
       for(jj in 1:2) otuSigmasHealthy[ii][,jj] ~ normal(append_col(metaOtuMu[jj,],0.0),metaOtuSigma[jj,]);
     }
     for(ii in 1:nSickPair){
-      for(jj in 1:3) otuSigmasSick[jj][,ii] ~ normal(append_col(metaOtuMu[jj,],0.0),metaOtuSigma[jj,]);
+      for(jj in 1:3) otuSigmasSick[ii][,jj] ~ normal(append_col(metaOtuMu[jj,],0.0),metaOtuSigma[jj,]);
     }
 
     //set up mixing proportions
@@ -76,13 +76,13 @@ stanCode<-"
       }
       if(sampleType[ii]==2){
         //samplePairType 1 would be an error tissue sample from negative control
-        if(samplePairType[ii]==2)counts[ii,] ~ multinomial(samplePropsTissue[ii,1] * otuPropHealthy[healthyID[ii],1] + samplePropsTissue[ii,2] * otuPropHealthy[healthyID[ii],2]);
+        if(samplePairType[ii]==2)counts[ii,] ~ multinomial(samplePropsTissue[healthyID[ii]][1] * otuPropHealthy[healthyID[ii],1] + samplePropsTissue[healthyID[ii]][2] * otuPropHealthy[healthyID[ii],2]);
         //doesn't occur currently
-        if(samplePairType[ii]==3)counts[ii,] ~ multinomial(samplePropsDisease[ii,1] * otuPropSick[sickID[ii],1] + samplePropsDisease[ii,2] * otuPropSick[sickID[ii],2]);
+        if(samplePairType[ii]==3)counts[ii,] ~ multinomial(samplePropsDisease[sickID[ii]][1] * otuPropSick[sickID[ii],1] + samplePropsDisease[sickID[ii]][2] * otuPropSick[sickID[ii],2]);
       }
       if(sampleType[ii]==3){
         //samplePairType 1 or 2 would be an error disease sample from negative control or healthy control
-        if(samplePairType[ii]==3)counts[ii,] ~ multinomial(samplePropsDisease[ii,1] * otuPropSick[sickID[ii],1] + samplePropsDisease[ii,2] * otuPropSick[sickID[ii],2] + samplePropsDisease[ii,3] * otuPropSick[sickID[ii],3]);
+        if(samplePairType[ii]==3)counts[ii,] ~ multinomial(samplePropsDisease[sickID[ii]][1] * otuPropSick[sickID[ii],1] + samplePropsDisease[sickID[ii]][2] * otuPropSick[sickID[ii],2] + samplePropsDisease[sickID[ii]][3] * otuPropSick[sickID[ii],3]);
       }
     }
   }
