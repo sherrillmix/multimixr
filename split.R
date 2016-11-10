@@ -35,9 +35,9 @@ stanCode<-"
   parameters {
     matrix[3,nSpecies-1] metaOtuMu; //last one fixed at 0 for identifiability
     real<lower=0> metaOtuSigma[3,nSpecies];
-    matrix<lower=0,upper=1>[nSpecies,1] otuSigmasNegative[nNegativePair];
-    matrix<lower=0,upper=1>[nSpecies,2] otuSigmasHealthy[nHealthyPair];
-    matrix<lower=0,upper=1>[nSpecies,3] otuSigmasSick[nSickPair];
+    matrix[nSpecies,1] otuSigmasNegative[nNegativePair];
+    matrix[nSpecies,2] otuSigmasHealthy[nHealthyPair];
+    matrix[nSpecies,3] otuSigmasSick[nSickPair];
     simplex[2] samplePropsTissue[nTissueSample];
     simplex[3] samplePropsDisease[nDiseaseSample];
   }
@@ -47,23 +47,23 @@ stanCode<-"
     simplex[nSpecies] otuPropSick[nSickPair,3];
 
     //convert raw proportion values to proportions
-    for(ii in 1:nNegativePair) otuPropNegative[ii,] = exp(otuSigmasNegative[ii][,1]) / sum(exp(otuSigmasNegative[ii][,1]));
+    for(ii in 1:nNegativePair) otuPropNegative[ii,] = exp(append_col(metaOtuMu[1,],0.0)+otuSigmasNegative[ii][,1]*metaOtuSigma[1,]) / sum(exp(append_col(metaOtuMu[1,],0.0)+otuSigmasNegative[ii][,1]*metaOtuSigma[1,]));
     for(ii in 1:nHealthyPair){
-      for(jj in 1:2) otuPropHealthy[ii,jj] = exp(otuSigmasHealthy[ii][,jj]) / sum(exp(otuSigmasHealthy[ii][,jj]));
+      for(jj in 1:2) otuPropHealthy[ii,jj] = exp(append_col(metaOtuMu[jj,],0.0)+otuSigmasHealthy[ii][,jj]*metaOtuSigma[jj,]) / sum(exp(append_col(metaOtuMu[jj,],0.0)+otuSigmasHealthy[ii][,jj]*metaOtuSigma[jj,]));
     }
     for(ii in 1:nSickPair){
-      for(jj in 1:3) otuPropSick[ii,jj] = exp(otuSigmasSick[ii][,jj]) / sum(exp(otuSigmasSick[ii][,jj]));
+      for(jj in 1:3) otuPropSick[ii,jj] = exp(append_col(metaOtuMu[jj,],0.0)+otuSigmasSick[ii][,jj]*metaOtuSigma[jj,]) / sum(exp(append_col(metaOtuMu[jj,],0.0)+otuSigmasSick[ii][,jj]*metaOtuSigma[jj,]));
     }
   }
   model {
     for(ii in 1:3)metaOtuSigma[ii,]~gamma(1.0,0.01);
     #get the raw OTU proportion values for each pair
-    for(ii in 1:nNegativePair) otuSigmasNegative[ii][,1] ~ normal(append_col(metaOtuMu[1,],0.0),metaOtuSigma[1,]);
+    for(ii in 1:nNegativePair) otuSigmasNegative[ii][,1] ~ normal(0,1);
     for(ii in 1:nHealthyPair){
-      for(jj in 1:2) otuSigmasHealthy[ii][,jj] ~ normal(append_col(metaOtuMu[jj,],0.0),metaOtuSigma[jj,]);
+      for(jj in 1:2) otuSigmasHealthy[ii][,jj] ~ normal(0,1);
     }
     for(ii in 1:nSickPair){
-      for(jj in 1:3) otuSigmasSick[ii][,jj] ~ normal(append_col(metaOtuMu[jj,],0.0),metaOtuSigma[jj,]);
+      for(jj in 1:3) otuSigmasSick[ii][,jj] ~ normal(0,1);
     }
 
     //set up mixing proportions
@@ -143,6 +143,11 @@ dat<-list(
 # cacheOperation('work/stanFit.Rdat',
 fit <- stan(model_code = stanCode, data = dat, iter=nIter, chains=nChain,thin=thin)
 #save(fit,file='tmp.Rdat')
+sims<-as.array(fit)
+dim(sims)<-c(prod(dim(sims)[c(1,2)]),dim(sims)[3])
+colnames(sims)<-dimnames(as.array(fit))[[3]]
+
+apply(sims[,grep('metaOtuMu\\[3,[0-9]+\\]',colnames(sims))],2,quantile,c(.025,.975))
 
 #print(fit,pars='otuSigmasSick')
 pdf('test.pdf',width=10)
