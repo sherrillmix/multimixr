@@ -47,23 +47,23 @@ stanCode<-"
     simplex[nSpecies] otuPropSick[nSickPair,3];
 
     //convert raw proportion values to proportions
-    for(ii in 1:nNegativePair) otuPropNegative[ii,] = exp(append_col(metaOtuMu[1,],0.0)+otuSigmasNegative[ii][,1]*metaOtuSigma[1,]) / sum(exp(append_col(metaOtuMu[1,],0.0)+otuSigmasNegative[ii][,1]*metaOtuSigma[1,]));
+    for(ii in 1:nNegativePair) otuPropNegative[ii,] = exp(otuSigmasNegative[ii][,1]) / sum(exp(otuSigmasNegative[ii][,1]));
     for(ii in 1:nHealthyPair){
-      for(jj in 1:2) otuPropHealthy[ii,jj] = exp(append_col(metaOtuMu[jj,],0.0)+otuSigmasHealthy[ii][,jj]*metaOtuSigma[jj,]) / sum(exp(append_col(metaOtuMu[jj,],0.0)+otuSigmasHealthy[ii][,jj]*metaOtuSigma[jj,]));
+      for(jj in 1:2) otuPropHealthy[ii,jj] = exp(otuSigmasHealthy[ii][,jj]) / sum(exp(otuSigmasHealthy[ii][,jj]));
     }
     for(ii in 1:nSickPair){
-      for(jj in 1:3) otuPropSick[ii,jj] = exp(append_col(metaOtuMu[jj,],0.0)+otuSigmasSick[ii][,jj]*metaOtuSigma[jj,]) / sum(exp(append_col(metaOtuMu[jj,],0.0)+otuSigmasSick[ii][,jj]*metaOtuSigma[jj,]));
+      for(jj in 1:3) otuPropSick[ii,jj] = exp(otuSigmasSick[ii][,jj]) / sum(exp(otuSigmasSick[ii][,jj]));
     }
   }
   model {
     for(ii in 1:3)metaOtuSigma[ii,]~gamma(1.0,0.01);
     #get the raw OTU proportion values for each pair
-    for(ii in 1:nNegativePair) otuSigmasNegative[ii][,1] ~ normal(0,1);
+    for(ii in 1:nNegativePair) otuSigmasNegative[ii][,1] ~ normal(append_col(metaOtuMu[1,],0.0),metaOtuSigma[1,]);
     for(ii in 1:nHealthyPair){
-      for(jj in 1:2) otuSigmasHealthy[ii][,jj] ~ normal(0,1);
+      for(jj in 1:2) otuSigmasHealthy[ii][,jj] ~ normal(append_col(metaOtuMu[jj,],0.0),metaOtuSigma[jj,]);
     }
     for(ii in 1:nSickPair){
-      for(jj in 1:3) otuSigmasSick[ii][,jj] ~ normal(0,1);
+      for(jj in 1:3) otuSigmasSick[ii][,jj] ~ normal(append_col(metaOtuMu[jj,],0.0),metaOtuSigma[jj,]);
     }
 
     //set up mixing proportions
