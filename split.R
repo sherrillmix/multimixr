@@ -1,8 +1,8 @@
 library('rstan')
 
 nChain<-50
-nIter<-1000
-thin<-10
+nIter<-8000
+thin<-20
 if(parallel::detectCores()>10){
   rstan_options(auto_write = TRUE)
   options(mc.cores = parallel::detectCores())
@@ -56,6 +56,7 @@ stanCode<-"
     }
   }
   model {
+    for(ii in 1:3)metaOtuSigma[ii,]~gamma(1.0,0.01);
     #get the raw OTU proportion values for each pair
     for(ii in 1:nNegativePair) otuSigmasNegative[ii][,1] ~ normal(append_col(metaOtuMu[1,],0.0),metaOtuSigma[1,]);
     for(ii in 1:nHealthyPair){
@@ -99,7 +100,13 @@ info$SampleID<-as.character(info$SampleID)
 info$DerivingSampleID<-as.character(info$DerivingSampleID)
 info$StudyGroup<-as.character(info$StudyGroup)
 counts<-counts[,info$SampleID]
-counts<-counts[apply(counts,1,sum)>10,]
+taxaSplit<-strsplit(taxa,'; ')
+taxaSplit<-do.call(rbind,lapply(taxaSplit,function(x,n)c(x,rep(NA,n-length(x))),max(sapply(taxaSplit,length))))
+taxaSplit[grep('^[a-z]__$',taxaSplit)]<-NA
+otuMaxProp<-apply(apply(counts,2,function(x)x/sum(x)),1,max)
+minorSelect<-otuMaxProp<.05
+bak<-counts
+counts<-rbind(counts[!minorSelect,],'MinorOTU'=apply(counts[minorSelect,],2,sum))
 
 
 assignGroups<-function(x,selector=rep(TRUE,length(x)),outId=99999){
@@ -135,4 +142,11 @@ dat<-list(
 # ,control=list(adapt_delta=.99,stepsize=.01)
 # cacheOperation('work/stanFit.Rdat',
 fit <- stan(model_code = stanCode, data = dat, iter=nIter, chains=nChain,thin=thin)
+#save(fit,file='tmp.Rdat')
 
+#print(fit,pars='otuSigmasSick')
+pdf('test.pdf',width=10)
+print(plot(fit))
+print(traceplot(fit))
+print(traceplot(fit,inc_warmup=TRUE))
+dev.off()
