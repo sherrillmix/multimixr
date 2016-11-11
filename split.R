@@ -106,7 +106,8 @@ taxaSplit[grep('^[a-z]__$',taxaSplit)]<-NA
 otuMaxProp<-apply(apply(counts,2,function(x)x/sum(x)),1,max)
 minorSelect<-otuMaxProp<.05
 bak<-counts
-counts<-rbind(counts[!minorSelect,],'MinorOTU'=apply(counts[minorSelect,],2,sum))
+counts<-rbind(counts[!minorSelect,],'MinorOTUs'=apply(counts[minorSelect,],2,sum))
+counts<-counts[order(apply(counts,1,sum),decreasing=TRUE),]
 
 
 assignGroups<-function(x,selector=rep(TRUE,length(x)),outId=99999){
@@ -148,6 +149,23 @@ dim(sims)<-c(prod(dim(sims)[c(1,2)]),dim(sims)[3])
 colnames(sims)<-dimnames(as.array(fit))[[3]]
 
 apply(sims[,grep('metaOtuMu\\[3,[0-9]+\\]',colnames(sims))],2,quantile,c(.025,.975))
+apply(sims[,grep('metaOtuSigma\\[3,[0-9]+\\]',colnames(sims))],2,mean)
+apply(sims[,grep('samplePropsDisease\\[[0-9]+,3',colnames(sims))],2,mean)
+apply(sims[,grep('samplePropsTissue\\[[0-9]+,2',colnames(sims))],2,mean)
+apply(sims[,grep('otuPropNegative\\[[0-9]+,118',colnames(sims))],2,mean)
+otuPred<-apply(sims[,grep('metaOtuMu',colnames(sims))],2,mean)
+pdf('otuPred.pdf')
+plot(1,1,type='n',xlim=c(1,nrow(counts)),ylim=c(1e-5,1),log='y',xaxs='i')
+for(ii in 1:3){
+  exps<-exp(c(otuPred[grep(sprintf('\\[%d,',ii),names(otuPred))],0))
+  print(tail(exps/sum(exps)))
+  points(1:(nrow(counts)),exps/sum(exps),col=ii)
+}
+abline(v=1:nrow(counts),col='#00000033')
+image(1:nrow(counts),1:ncol(counts),apply(counts[,order(sampleType)],2,function(x)x/sum(x)),col=rev(heat.colors(100)),xlab='OTU',ylab='',yaxt='n')
+axis(2,1:ncol(counts),sort(sampleType),las=1)
+abline(v=74,col='#00000055',lty=2)
+dev.off()
 
 #print(fit,pars='otuSigmasSick')
 pdf('test.pdf',width=10)
