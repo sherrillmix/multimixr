@@ -155,7 +155,7 @@ apply(sims[,grep('samplePropsTissue\\[[0-9]+,2',colnames(sims))],2,mean)
 apply(sims[,grep('otuPropNegative\\[[0-9]+,118',colnames(sims))],2,mean)
 otuPred<-apply(sims[,grep('metaOtuMu',colnames(sims))],2,mean)
 pdf('otuPred.pdf')
-plot(1,1,type='n',xlim=c(1,nrow(counts)),ylim=c(1e-5,1),log='y',xaxs='i')
+plot(1,1,type='n',xlim=c(0,nrow(counts)+1),ylim=c(1e-5,1),log='y',xaxs='i')
 for(ii in 1:3){
   exps<-exp(c(otuPred[grep(sprintf('\\[%d,',ii),names(otuPred))],0))
   print(tail(exps/sum(exps)))
@@ -164,7 +164,6 @@ for(ii in 1:3){
 abline(v=1:nrow(counts),col='#00000033')
 image(1:nrow(counts),1:ncol(counts),apply(counts[,order(sampleType)],2,function(x)x/sum(x)),col=rev(heat.colors(100)),xlab='OTU',ylab='',yaxt='n')
 axis(2,1:ncol(counts),sort(sampleType),las=1)
-abline(v=74,col='#00000055',lty=2)
 dev.off()
 
 #print(fit,pars='otuSigmasSick')
