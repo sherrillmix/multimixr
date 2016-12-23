@@ -1,8 +1,8 @@
 library('rstan')
 
 nChain<-50
-nIter<-8000
-thin<-20
+nIter<-1000
+thin<-10
 if(parallel::detectCores()>10){
   rstan_options(auto_write = TRUE)
   options(mc.cores = parallel::detectCores())
@@ -40,6 +40,8 @@ stanCode<-"
     matrix[nSpecies,3] otuSigmasSick[nSickPair];
     simplex[2] samplePropsTissue[nTissueSample];
     simplex[3] samplePropsDisease[nDiseaseSample];
+    real sickLocation;
+    real sickScale;
   }
   transformed parameters{
     simplex[nSpecies] otuPropNegative[nNegativePair];
@@ -56,6 +58,7 @@ stanCode<-"
     }
   }
   model {
+    metaOtuMu[3,]~double_exponential(sickLocation,sickScale);
     for(ii in 1:3)metaOtuSigma[ii,]~gamma(1.0,0.01);
     #get the raw OTU proportion values for each pair
     for(ii in 1:nNegativePair) otuSigmasNegative[ii][,1] ~ normal(append_col(metaOtuMu[1,],0.0),metaOtuSigma[1,]);
@@ -104,7 +107,7 @@ taxaSplit<-strsplit(taxa,'; ')
 taxaSplit<-do.call(rbind,lapply(taxaSplit,function(x,n)c(x,rep(NA,n-length(x))),max(sapply(taxaSplit,length))))
 taxaSplit[grep('^[a-z]__$',taxaSplit)]<-NA
 otuMaxProp<-apply(apply(counts,2,function(x)x/sum(x)),1,max)
-minorSelect<-otuMaxProp<.05
+minorSelect<-otuMaxProp<.01
 bak<-counts
 counts<-rbind(counts[!minorSelect,],'MinorOTUs'=apply(counts[minorSelect,],2,sum))
 counts<-counts[order(apply(counts,1,sum),decreasing=TRUE),]
@@ -140,6 +143,7 @@ dat<-list(
   tissuePrior=c(1,1),
   diseasePrior=c(1,1,1)
 )
+
 # ,control=list(adapt_delta=.99,stepsize=.01)
 # cacheOperation('work/stanFit.Rdat',
 fit <- stan(model_code = stanCode, data = dat, iter=nIter, chains=nChain,thin=thin)
@@ -154,21 +158,21 @@ apply(sims[,grep('samplePropsDisease\\[[0-9]+,3',colnames(sims))],2,mean)
 apply(sims[,grep('samplePropsTissue\\[[0-9]+,2',colnames(sims))],2,mean)
 apply(sims[,grep('otuPropNegative\\[[0-9]+,118',colnames(sims))],2,mean)
 otuPred<-apply(sims[,grep('metaOtuMu',colnames(sims))],2,mean)
-pdf('otuPred.pdf')
-plot(1,1,type='n',xlim=c(0,nrow(counts)+1),ylim=c(1e-5,1),log='y',xaxs='i')
+pdf('otuPred.pdf',width=10)
+plot(1,1,type='n',xlim=c(0,nrow(counts)+1),ylim=c(1e-20,1),log='y',xaxs='i',xlab='OTU',ylab='Abundance')
 for(ii in 1:3){
   exps<-exp(c(otuPred[grep(sprintf('\\[%d,',ii),names(otuPred))],0))
   print(tail(exps/sum(exps)))
-  points(1:(nrow(counts)),exps/sum(exps),col=ii)
+  points(1:(nrow(counts)),exps/sum(exps),col=ii,cex=.7)
 }
 abline(v=1:nrow(counts),col='#00000033')
-image(1:nrow(counts),1:ncol(counts),apply(counts[,order(sampleType)],2,function(x)x/sum(x)),col=rev(heat.colors(100)),xlab='OTU',ylab='',yaxt='n')
-axis(2,1:ncol(counts),sort(sampleType),las=1)
+image(1:nrow(counts),1:ncol(counts),apply(counts[,order(sampleType,samplePairType)],2,function(x)x/sum(x)),col=rev(heat.colors(100)),xlab='OTU',ylab='',yaxt='n')
+axis(2,1:ncol(counts),paste(substring(info$SampleType,1,3),substring(info$StudyGroup,1,3))[order(sampleType,samplePairType)],las=1,cex=.8)
 dev.off()
 
 #print(fit,pars='otuSigmasSick')
 pdf('test.pdf',width=10)
-print(plot(fit))
-print(traceplot(fit))
-print(traceplot(fit,inc_warmup=TRUE))
+print(plot(fit)+theme_minimal(base_family='Helvetica'))
+print(traceplot(fit)+theme_minimal(base_family='Helvetica'))
+print(traceplot(fit,inc_warmup=TRUE)+theme_minimal(base_family='Helvetica'))
 dev.off()
