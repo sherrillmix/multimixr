@@ -41,7 +41,7 @@ stanCode<-"
     simplex[2] samplePropsTissue[nTissueSample];
     simplex[3] samplePropsDisease[nDiseaseSample];
     real sickLocation;
-    real sickScale;
+    real<lower=0> sickScale;
   }
   transformed parameters{
     simplex[nSpecies] otuPropNegative[nNegativePair];
