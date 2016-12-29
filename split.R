@@ -58,6 +58,7 @@ stanCode<-"
     }
   }
   model {
+    sickScale~uniform(0,10);
     metaOtuMu[3,]~double_exponential(sickLocation,sickScale);
     for(ii in 1:3)metaOtuSigma[ii,]~gamma(1.0,0.01);
     #get the raw OTU proportion values for each pair
